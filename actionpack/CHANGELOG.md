@@ -1,3 +1,13 @@
+*   Changed the meaning of `render "foo/bar"`.
+
+    Previously, calling `render "foo/bar"` in a controller action is equivalent
+    to `render file: "foo/bar"`. This has been changed to mean
+    `render template: "foo/bar"` instead. If you need to render a file, please
+    change your code to use the explicit form (`render file: "foo/bar"`) instead.
+
+    *Eileen Uchitelle*
+
+
 *   Ensure simple_format escapes its html attributes. This fixes CVE-2013-6416
 
 *   Deep Munge the parameters for GET and POST Fixes CVE-2013-6417

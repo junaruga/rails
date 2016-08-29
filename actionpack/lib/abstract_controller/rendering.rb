@@ -155,16 +155,21 @@ module AbstractController
     end
 
     # Normalize args by converting render "foo" to render :action => "foo" and
-    # render "foo/bar" to render :file => "foo/bar".
+    # render "foo/bar" to render :template => "foo/bar".
     # :api: plugin
     def _normalize_args(action=nil, options={})
       case action
+      when ActionController::Parameters
+        unless action.permitted?
+          raise ArgumentError, "render parameters are not permitted"
+        end
+        action
       when NilClass
       when Hash
         options = action
       when String, Symbol
         action = action.to_s
-        key = action.include?(?/) ? :file : :action
+        key = action.include?(?/) ? :template : :action
         options[key] = action
       else
         options[:partial] = action

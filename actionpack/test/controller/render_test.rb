@@ -76,6 +76,16 @@ class TestController < ActionController::Base
     end
   end
 
+  def dynamic_render
+    render params[:id] # => String, AC:Params
+  end
+
+  def dynamic_render_with_file
+    # This is extremely bad, but should be possible to do.
+    file = params[:id] # => String, AC:Params
+    render file: file
+  end
+
   def conditional_hello_with_public_header
     if stale?(:last_modified => Time.now.utc.beginning_of_day, :etag => [:foo, 123], :public => true)
       render :action => 'hello_world'
@@ -149,17 +159,17 @@ class TestController < ActionController::Base
 
   # :ported:
   def render_hello_world
-    render :template => "test/hello_world"
+    render "test/hello_world"
   end
 
   def render_hello_world_with_last_modified_set
     response.last_modified = Date.new(2008, 10, 10).to_time
-    render :template => "test/hello_world"
+    render "test/hello_world"
   end
 
   # :ported: compatibility
   def render_hello_world_with_forward_slash
-    render :template => "/test/hello_world"
+    render "/test/hello_world"
   end
 
   # :ported:
@@ -169,7 +179,7 @@ class TestController < ActionController::Base
 
   # :deprecated:
   def render_template_in_top_directory_with_slash
-    render :template => '/shared'
+    render '/shared'
   end
 
   # :ported:
@@ -218,13 +228,6 @@ class TestController < ActionController::Base
   end
 
   # :ported:
-  def render_file_as_string_with_instance_variables
-    @secret = 'in the sauce'
-    path = File.expand_path(File.join(File.dirname(__FILE__), '../fixtures/test/render_file_with_ivar'))
-    render path
-  end
-
-  # :ported:
   def render_file_not_using_full_path
     @secret = 'in the sauce'
     render :file => 'test/render_file_with_ivar'
@@ -252,7 +255,7 @@ class TestController < ActionController::Base
 
   def render_file_as_string_with_locals
     path = File.expand_path(File.join(File.dirname(__FILE__), '../fixtures/test/render_file_with_locals'))
-    render path, :locals => {:secret => 'in the sauce'}
+    render file: path, :locals => {:secret => 'in the sauce'}
   end
 
   def accessing_request_in_template
@@ -884,12 +887,6 @@ class RenderTest < ActionController::TestCase
   def test_render_file
     get :hello_world_file
     assert_equal "Hello world!", @response.body
-  end
-
-  # :ported:
-  def test_render_file_as_string_with_instance_variables
-    get :render_file_as_string_with_instance_variables
-    assert_equal "The secret is in the sauce\n", @response.body
   end
 
   # :ported:
@@ -1537,11 +1534,49 @@ class RenderTest < ActionController::TestCase
   end
 end
 
+class MetalWithoutAVTestController < ActionController::Metal
+  include AbstractController::Rendering
+  include ActionController::Rendering
+  include ActionController::StrongParameters
+
+  def dynamic_params_render
+    render params
+  end
+end
+
 class ExpiresInRenderTest < ActionController::TestCase
   tests TestController
 
   def setup
-    @request.host = "www.nextangle.com"
+    super
+    ActionController::Base.view_paths.paths.each(&:clear_cache)
+  end
+
+  def test_dynamic_render_with_file
+    # This is extremely bad, but should be possible to do.
+    assert File.exist?(File.join(File.dirname(__FILE__), '../../test/abstract_unit.rb'))
+    response = get :dynamic_render_with_file, { id: '../\\../test/abstract_unit.rb' }
+    assert_equal File.read(File.join(File.dirname(__FILE__), '../../test/abstract_unit.rb')),
+      response.body
+  end
+
+  def test_dynamic_render_with_absolute_path
+    file = Tempfile.new('name')
+    file.write "secrets!"
+    file.flush
+    assert_raises ActionView::MissingTemplate do
+      get :dynamic_render, { id: file.path }
+    end
+  ensure
+    file.close
+    file.unlink
+  end
+
+  def test_dynamic_render_file_hash
+    e = assert_raises ArgumentError do
+      get :dynamic_render, { id: { file: '../\\../test/abstract_unit.rb' } }
+    end
+    assert_equal "render parameters are not permitted", e.message
   end
 
   def test_expires_in_header
@@ -1718,5 +1753,16 @@ class MetalRenderTest < ActionController::TestCase
   def test_access_to_logger_in_view
     get :accessing_logger_in_template
     assert_equal "NilClass", @response.body
+  end
+end
+
+class MetalRenderWithoutAVTest < ActionController::TestCase
+  tests MetalWithoutAVTestController
+
+  def test_dynamic_params_render
+    e = assert_raises ArgumentError do
+      get :dynamic_params_render, { inline: '<%= RUBY_VERSION %>' }
+    end
+    assert_equal "render parameters are not permitted", e.message
   end
 end
