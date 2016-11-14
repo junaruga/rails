@@ -398,7 +398,7 @@ module Rails
       end
 
       def run_bundle
-        bundle_command('install') if bundle_install?
+        bundle_command('install --local') if bundle_install?
       end
 
       def generate_spring_binstubs
